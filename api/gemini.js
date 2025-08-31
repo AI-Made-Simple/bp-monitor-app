@@ -21,7 +21,7 @@ export default async function handler(req, res) {
         contents: [{
           parts: [
             { text: "This is a photo of a digital blood pressure monitor. Please extract the systolic, diastolic, and pulse readings from the screen. Format the output as:\nSystolic: ___ mmHg\nDiastolic: ___ mmHg\nPulse: ___ bpm" },
-            { inline_data: { mime_type: "image/jpeg", data: imageBase64 } }
+            { inline_data: { mime_type: req.body.mimeType || "image/jpeg", data: imageBase64 } }
           ]
         }]
       })
