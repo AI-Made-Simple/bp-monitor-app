@@ -233,7 +233,7 @@
                 <input type="file" id="fileInput" accept="image/*">
                 <div class="upload-icon">📷</div>
                 <div class="upload-text">Click to upload or drag & drop</div>
-                <div class="upload-hint">PNG, JPG, JPEG up to 10MB</div>
+                <div class="upload-hint">PNG, JPG, JPEG - Crop to show just the display for best results</div>
             </div>
 
             <button class="analyze-btn" id="analyzeBtn">🔍 Analyze Reading</button>
@@ -336,6 +336,7 @@
             }
 
             selectedFile = file;
+            console.log('Original file size:', Math.round(file.size / 1024), 'KB');
             
             // Show preview
             const reader = new FileReader();
@@ -360,10 +361,19 @@
                 hideError();
                 hideResults();
 
-                // Preprocess image for better OCR
+                // Preprocess and compress image aggressively
                 const processedImageData = await preprocessImage(selectedFile);
+                const base64Data = processedImageData.split(',')[1];
                 
-                console.log('Sending to Vision API:', processedImageData.substring(0, 50) + '...');
+                const finalSizeKB = Math.round(base64Data.length * 0.75 / 1024);
+                console.log('Final payload size:', finalSizeKB, 'KB');
+                
+                // Strict size check for Vercel limits (under 1MB to be safe)
+                if (base64Data.length > 1024 * 1024) { // 1MB in base64
+                    throw new Error(`Image too large (${finalSizeKB}KB). Please crop the image to show only the BP monitor display, or use a smaller image.`);
+                }
+
+                console.log('Sending to Vision API, payload size OK');
 
                 const response = await fetch('/api/vision', {
                     method: 'POST',
@@ -371,7 +381,7 @@
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        image: processedImageData.split(',')[1] // Remove data:image/png;base64, prefix
+                        image: base64Data
                     })
                 });
 
@@ -384,6 +394,10 @@
 
                 if (data.error) {
                     throw new Error(data.error);
+                }
+
+                if (response.status === 500) {
+                    throw new Error(data.details || data.error || 'Server error occurred');
                 }
 
                 if (!data.text || data.text === 'No text found.') {
@@ -415,36 +429,49 @@
                 const img = new Image();
                 
                 img.onload = () => {
-                    // Set canvas size
-                    canvas.width = img.width;
-                    canvas.height = img.height;
+                    // Calculate optimal size (max 800px width, maintain aspect ratio)
+                    let { width, height } = img;
+                    const maxWidth = 800;
+                    const maxHeight = 800;
                     
-                    // Draw image
-                    ctx.drawImage(img, 0, 0);
+                    if (width > maxWidth || height > maxHeight) {
+                        const ratio = Math.min(maxWidth / width, maxHeight / height);
+                        width = Math.floor(width * ratio);
+                        height = Math.floor(height * ratio);
+                    }
+                    
+                    // Set canvas size
+                    canvas.width = width;
+                    canvas.height = height;
+                    
+                    // Draw resized image
+                    ctx.drawImage(img, 0, 0, width, height);
                     
                     // Get image data for preprocessing
-                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    const imageData = ctx.getImageData(0, 0, width, height);
                     const data = imageData.data;
                     
                     // Enhance contrast and brightness for better text detection
                     for (let i = 0; i < data.length; i += 4) {
                         // Increase contrast
-                        const factor = 1.3;
+                        const factor = 1.4;
                         data[i] = Math.min(255, Math.max(0, (data[i] - 128) * factor + 128));     // Red
                         data[i + 1] = Math.min(255, Math.max(0, (data[i + 1] - 128) * factor + 128)); // Green
                         data[i + 2] = Math.min(255, Math.max(0, (data[i + 2] - 128) * factor + 128)); // Blue
                         
-                        // Increase brightness
-                        data[i] = Math.min(255, data[i] + 20);
-                        data[i + 1] = Math.min(255, data[i + 1] + 20);
-                        data[i + 2] = Math.min(255, data[i + 2] + 20);
+                        // Increase brightness slightly
+                        data[i] = Math.min(255, data[i] + 15);
+                        data[i + 1] = Math.min(255, data[i + 1] + 15);
+                        data[i + 2] = Math.min(255, data[i + 2] + 15);
                     }
                     
                     // Put processed image data back
                     ctx.putImageData(imageData, 0, 0);
                     
-                    // Return as data URL
-                    resolve(canvas.toDataURL('image/png', 0.9));
+                    // Return as compressed JPEG with quality setting to reduce size
+                    const dataURL = canvas.toDataURL('image/jpeg', 0.8);
+                    console.log('Compressed image size:', Math.round(dataURL.length / 1024), 'KB');
+                    resolve(dataURL);
                 };
                 
                 img.src = URL.createObjectURL(file);
