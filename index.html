@@ -28,7 +28,8 @@
   <!-- Google Sign-In -->
   <div id="g_id_onload"
        data-client_id="355753802847-lpubtdhub8imc4egn27ffe0l8t5n3v5l.apps.googleusercontent.com"
-       data-auto_prompt="false"
+       data-auto_prompt="true"
+       data-auto_select="true"
        data-callback="handleCredentialResponse">
   </div>
   <div class="g_id_signin"
@@ -56,8 +57,19 @@
     const output = document.getElementById("output");
     const dropZone = document.getElementById("dropZone");
 
+    // Auto-restore JWT on page load
+    window.onload = () => {
+      const savedToken = localStorage.getItem("google_jwt");
+      if (savedToken) {
+        accessToken = savedToken;
+        console.log("Restored JWT from localStorage.");
+        document.getElementById("appUI").style.display = "block";
+      }
+    };
+
     function handleCredentialResponse(response) {
       accessToken = response.credential;
+      localStorage.setItem("google_jwt", accessToken);
       console.log("Google JWT:", accessToken);
       document.getElementById("appUI").style.display = "block";
     }
@@ -141,7 +153,6 @@
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               imageBase64: base64Image,
-              jwt: accessToken,
               mimeType: currentImage.type
             })
           });
