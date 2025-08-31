@@ -31,15 +31,15 @@
        data-auto_prompt="false"
        data-callback="handleCredentialResponse">
   </div>
-<div class="g_id_signin"
-     data-client_id="355753802847-lpubtdhub8imc4egn27ffe0l8t5n3v5l.apps.googleusercontent.com"
-     data-type="standard"
-     data-size="large"
-     data-theme="outline"
-     data-text="sign_in_with"
-     data-shape="rectangular"
-     data-logo_alignment="left">
-</div>
+  <div class="g_id_signin"
+       data-client_id="355753802847-lpubtdhub8imc4egn27ffe0l8t5n3v5l.apps.googleusercontent.com"
+       data-type="standard"
+       data-size="large"
+       data-theme="outline"
+       data-text="sign_in_with"
+       data-shape="rectangular"
+       data-logo_alignment="left">
+  </div>
 
   <!-- App UI (hidden until login) -->
   <div id="appUI" style="display: none;">
@@ -91,16 +91,42 @@
       }
     });
 
+    function resizeImage(file, maxWidth = 800, maxHeight = 800, callback) {
+      const img = new Image();
+      const reader = new FileReader();
+
+      reader.onload = function (e) {
+        img.src = e.target.result;
+      };
+
+      img.onload = function () {
+        const canvas = document.createElement("canvas");
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxWidth || height > maxHeight) {
+          const scale = Math.min(maxWidth / width, maxHeight / height);
+          width *= scale;
+          height *= scale;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+        const resizedDataUrl = canvas.toDataURL("image/jpeg", 0.7); // 70% quality
+        callback(resizedDataUrl.split(',')[1]); // base64 only
+      };
+
+      reader.readAsDataURL(file);
+    }
+
     async function sendToGemini() {
       if (!currentImage || !accessToken) {
         output.innerText = "Please sign in and upload an image.";
         return;
       }
 
-      const reader = new FileReader();
-      reader.onload = async function () {
-        const base64Image = reader.result.split(',')[1];
-
+      resizeImage(currentImage, 800, 800, async (base64Image) => {
         try {
           const response = await fetch("/api/gemini", {
             method: "POST",
@@ -118,12 +144,8 @@
           console.error("Error calling Gemini:", err);
           output.innerText = "Error extracting data. Please try again.";
         }
-      };
-
-      reader.readAsDataURL(currentImage);
+      });
     }
   </script>
 </body>
 </html>
-
-
