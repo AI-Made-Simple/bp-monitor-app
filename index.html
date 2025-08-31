@@ -140,7 +140,7 @@
 
           const result = await response.json();
           console.log("Gemini response:", result);
-          output.innerText = result.candidates?.[0]?.content?.parts?.[0]?.text || "No data found.";
+          output.innerText = result.text || "No data found.";
         } catch (err) {
           console.error("Error calling Gemini:", err);
           output.innerText = "Error extracting data. Please try again.";
@@ -150,4 +150,5 @@
   </script>
 </body>
 </html>
+
 
