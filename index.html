@@ -126,7 +126,15 @@
         return;
       }
 
+      console.log("Image MIME type:", currentImage.type);
+
       resizeImage(currentImage, 800, 800, async (base64Image) => {
+        console.log("Sending to Gemini:", {
+          mimeType: currentImage.type,
+          imageBase64: base64Image.slice(0, 100) + "...",
+          jwt: accessToken.slice(0, 20) + "..."
+        });
+
         try {
           const response = await fetch("/api/gemini", {
             method: "POST",
@@ -150,5 +158,3 @@
   </script>
 </body>
 </html>
-
-
