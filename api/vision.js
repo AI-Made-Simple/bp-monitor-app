@@ -20,7 +20,7 @@ export default async function handler(req, res) {
           requests: [
             {
               image: { content: base64 },
-              features: [{ type: "TEXT_DETECTION" }]
+              features: [{ type: "DOCUMENT_TEXT_DETECTION" }]
             }
           ]
         })
