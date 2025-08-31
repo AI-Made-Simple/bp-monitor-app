@@ -28,7 +28,10 @@ export default async function handler(req, res) {
     );
 
     const result = await response.json();
-    const text = result?.responses?.[0]?.fullTextAnnotation?.text || "No text found.";
+    const text =
+  result?.responses?.[0]?.fullTextAnnotation?.text ||
+  result?.responses?.[0]?.textAnnotations?.[0]?.description ||
+  "No text found.";
     res.status(200).json({ text });
   } catch (error) {
     console.error("Vision API error:", error);
