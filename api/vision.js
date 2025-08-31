@@ -28,15 +28,19 @@ export default async function handler(req, res) {
     );
 
     const result = await response.json();
+    console.log("Full Vision response:", JSON.stringify(result, null, 2));
+
+    if (result.responses?.[0]?.error) {
+      return res.status(400).json({ error: result.responses[0].error.message });
+    }
+
     const text =
-  result?.responses?.[0]?.fullTextAnnotation?.text ||
-  result?.responses?.[0]?.textAnnotations?.[0]?.description ||
-  "No text found.";
+      result?.responses?.[0]?.fullTextAnnotation?.text ||
+      result?.responses?.[0]?.textAnnotations?.[0]?.description ||
+      "No text found.";
     res.status(200).json({ text });
   } catch (error) {
     console.error("Vision API error:", error);
     res.status(500).json({ error: error.message || "Internal server error" });
   }
-  const result = await response.json();
-  console.log("Full Vision response:", JSON.stringify(result, null, 2));
 }
