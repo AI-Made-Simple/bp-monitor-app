@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Gemini BP Monitor</title>
+  <title>BP Monitor OCR</title>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
     body { font-family: sans-serif; padding: 20px; max-width: 600px; margin: auto; }
@@ -44,7 +44,7 @@
   <div id="appUI" style="display: none;">
     <input type="file" id="imageInput" accept="image/*">
     <div id="dropZone">Drop image here</div>
-    <button onclick="sendToGemini()">Extract & Save</button>
+    <button onclick="sendToVision()">Extract & Save</button>
     <img id="preview" />
     <div class="reading" id="output"></div>
   </div>
@@ -104,7 +104,7 @@
       }
     });
 
-    async function sendToGemini() {
+    async function sendToVision() {
       if (!currentImage) {
         output.innerText = "Please upload an image.";
         return;
@@ -113,26 +113,28 @@
       const reader = new FileReader();
       reader.onload = async function (e) {
         const dataUri = e.target.result;
-        console.log("Sending original image to Gemini:", {
-          mimeType: currentImage.type,
-          imageDataUri: dataUri.slice(0, 100) + "..."
-        });
+        console.log("Sending to Vision API:", dataUri.slice(0, 100) + "...");
 
         try {
-          const response = await fetch("/api/gemini", {
+          const response = await fetch("/api/vision", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              imageDataUri: dataUri,
-              mimeType: currentImage.type
-            })
+            body: JSON.stringify({ imageDataUri: dataUri })
           });
 
           const result = await response.json();
-          console.log("Gemini response:", result);
-          output.innerText = result.text || "No data found.";
+          console.log("Vision response:", result);
+
+          const text = result.text || "";
+          const match = text.match(/(\d{2,3})\s*\/\s*(\d{2,3})\s*(\d{2,3})/);
+          if (match) {
+            const [_, systolic, diastolic, pulse] = match;
+            output.innerText = `Systolic: ${systolic} mmHg\nDiastolic: ${diastolic} mmHg\nPulse: ${pulse} bpm`;
+          } else {
+            output.innerText = "Could not extract BP readings.";
+          }
         } catch (err) {
-          console.error("Error calling Gemini:", err);
+          console.error("Error calling Vision API:", err);
           output.innerText = "Error extracting data. Please try again.";
         }
       };
