@@ -28,7 +28,9 @@ export default async function handler(req, res) {
     });
 
     const result = await response.json();
-    res.status(200).json(result);
+
+    const text = result?.candidates?.[0]?.content?.parts?.[0]?.text || "No data found.";
+    res.status(200).json({ text });
   } catch (error) {
     console.error("Gemini API error:", error);
     res.status(500).json({ error: "Internal server error" });
