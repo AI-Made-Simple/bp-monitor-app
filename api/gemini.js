@@ -3,16 +3,20 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { imageBase64, mimeType } = req.body;
+  const { imageDataUri, mimeType } = req.body;
 
-  if (!imageBase64 || !mimeType) {
+  if (!imageDataUri || !mimeType) {
     return res.status(400).json({ error: "Missing image or MIME type" });
   }
 
-  const promptText = "This is a photo of a digital blood pressure monitor. Please extract the readings shown on the screen and format them as:\nSystolic: ___ mmHg\nDiastolic: ___ mmHg\nPulse: ___ bpm";
+  const rawBase64 = imageDataUri.split(',')[1];
 
-  // Extract raw base64 from data URI
-  const rawBase64 = imageBase64.split(',')[1];
+  if (!rawBase64 || rawBase64.length < 1000) {
+    console.log("Base64 string looks too short or malformed.");
+    return res.status(400).json({ error: "Invalid base64 image data" });
+  }
+
+  const promptText = "This is a photo of a digital blood pressure monitor. Please extract the readings shown on the screen and format them as:\nSystolic: ___ mmHg\nDiastolic: ___ mmHg\nPulse: ___ bpm";
 
   console.log("Sending to Gemini:");
   console.log("Prompt:", promptText);
