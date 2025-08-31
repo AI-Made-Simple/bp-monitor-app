@@ -133,7 +133,8 @@
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               imageBase64: base64Image,
-              jwt: accessToken
+              jwt: accessToken,
+              mimeType: currentImage.type
             })
           });
 
@@ -149,3 +150,4 @@
   </script>
 </body>
 </html>
+
