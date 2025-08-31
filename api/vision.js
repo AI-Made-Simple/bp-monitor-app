@@ -233,7 +233,7 @@
                 <input type="file" id="fileInput" accept="image/*">
                 <div class="upload-icon">📷</div>
                 <div class="upload-text">Click to upload or drag & drop</div>
-                <div class="upload-hint">PNG, JPG, JPEG up to 10MB</div>
+                <div class="upload-hint">PNG, JPG, JPEG - Crop to show just the display for best results</div>
             </div>
 
             <button class="analyze-btn" id="analyzeBtn">🔍 Analyze Reading</button>
@@ -361,18 +361,19 @@
                 hideError();
                 hideResults();
 
-                // Preprocess and compress image
+                // Preprocess and compress image aggressively
                 const processedImageData = await preprocessImage(selectedFile);
                 const base64Data = processedImageData.split(',')[1];
                 
-                console.log('Compressed image size:', Math.round(base64Data.length * 0.75 / 1024), 'KB');
+                const finalSizeKB = Math.round(base64Data.length * 0.75 / 1024);
+                console.log('Final payload size:', finalSizeKB, 'KB');
                 
-                // Check if still too large (Vercel limit is ~4MB)
-                if (base64Data.length > 3 * 1024 * 1024) { // 3MB in base64
-                    throw new Error('Image is still too large after compression. Please use a smaller image or crop to show just the display.');
+                // Strict size check for Vercel limits (under 1MB to be safe)
+                if (base64Data.length > 1024 * 1024) { // 1MB in base64
+                    throw new Error(`Image too large (${finalSizeKB}KB). Please crop the image to show only the BP monitor display, or use a smaller image.`);
                 }
 
-                console.log('Sending to Vision API, image length:', base64Data.length);
+                console.log('Sending to Vision API, payload size OK');
 
                 const response = await fetch('/api/vision', {
                     method: 'POST',
