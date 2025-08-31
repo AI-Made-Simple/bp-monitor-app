@@ -34,5 +34,6 @@ export default async function handler(req, res) {
     console.error("Vision API error:", error);
     res.status(500).json({ error: error.message || "Internal server error" });
   }
+  const result = await response.json();
   console.log("Full Vision response:", JSON.stringify(result, null, 2));
 }
