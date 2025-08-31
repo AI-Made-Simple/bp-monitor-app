@@ -1,113 +1,120 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Blood Pressure Extractor</title>
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-    <style>
-        body { font-family: Arial, sans-serif; text-align: center; }
-        #video { width: 100%; max-width: 400px; }
-        #canvas { display: none; }
-        #photo { width: 100%; max-width: 400px; display: none; }
-        #result { margin-top: 20px; font-size: 18px; }
-    </style>
-</head>
-<body>
-    <h1>Blood Pressure Photo Extractor</h1>
-    <p>Take a photo of your blood pressure monitor or upload one to extract SYS, DIA, and PULSE.</p>
-    
-    <video id="video" autoplay playsinline></video>
-    <canvas id="canvas"></canvas>
-    <img id="photo" alt="Captured Photo">
-    
-    <br>
-    <button id="capture">Capture Photo</button>
-    <input type="file" id="upload" accept="image/*">
-    <button id="process">Process Image</button>
-    
-    <div id="result"></div>
+<script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const photo = document.getElementById('photo');
+    const captureButton = document.getElementById('capture');
+    const uploadInput = document.getElementById('upload');
+    const processButton = document.getElementById('process');
+    const resultDiv = document.getElementById('result');
 
-    <script>
-        const video = document.getElementById('video');
-        const canvas = document.getElementById('canvas');
-        const photo = document.getElementById('photo');
-        const captureButton = document.getElementById('capture');
-        const uploadInput = document.getElementById('upload');
-        const processButton = document.getElementById('process');
-        const resultDiv = document.getElementById('result');
+    let imageDataUrl = null;
 
-        let imageDataUrl = null;
+    // Access camera
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+        .then(stream => {
+            video.srcObject = stream;
+        })
+        .catch(err => {
+            console.error('Error accessing camera:', err);
+            alert('Could not access camera. Please upload an image instead.');
+        });
 
-        // Access camera
-        navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-            .then(stream => {
-                video.srcObject = stream;
-            })
-            .catch(err => {
-                console.error('Error accessing camera:', err);
-                alert('Could not access camera. Please upload an image instead.');
+    // Capture photo
+    captureButton.addEventListener('click', () => {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+        imageDataUrl = canvas.toDataURL('image/png');
+        photo.src = imageDataUrl;
+        photo.style.display = 'block';
+        video.style.display = 'none';
+    });
+
+    // Handle upload
+    uploadInput.addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                imageDataUrl = e.target.result;
+                photo.src = imageDataUrl;
+                photo.style.display = 'block';
+        video.style.display = 'none';
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+
+    // Process image with OCR
+    processButton.addEventListener('click', async () => {
+        if (!imageDataUrl) {
+            alert('Please capture or upload a photo first.');
+            return;
+        }
+
+        resultDiv.innerHTML = 'Processing...';
+
+        try {
+            // Create a temporary canvas for image preprocessing
+            const tempCanvas = document.createElement('canvas');
+            const ctx = tempCanvas.getContext('2d');
+            const img = new Image();
+            img.src = imageDataUrl;
+            await new Promise(resolve => img.onload = resolve);
+
+            tempCanvas.width = img.width;
+            tempCanvas.height = img.height;
+            ctx.drawImage(img, 0, 0);
+
+            // Enhance contrast and convert to grayscale
+            const imageData = ctx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+            for (let i = 0; i < imageData.data.length; i += 4) {
+                const r = imageData.data[i];
+                const g = imageData.data[i + 1];
+                const b = imageData.data[i + 2];
+                const brightness = (r + g + b) / 3;
+                const contrast = brightness > 128 ? 255 : 0; // Simple binary threshold
+                imageData.data[i] = imageData.data[i + 1] = imageData.data[i + 2] = contrast;
+            }
+            ctx.putImageData(imageData, 0, 0);
+            const processedImageDataUrl = tempCanvas.toDataURL('image/png');
+
+            const { data: { text } } = await Tesseract.recognize(processedImageDataUrl, 'eng', {
+                logger: m => console.log(m)
             });
 
-        // Capture photo
-        captureButton.addEventListener('click', () => {
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-            imageDataUrl = canvas.toDataURL('image/png');
-            photo.src = imageDataUrl;
-            photo.style.display = 'block';
-            video.style.display = 'none';
-        });
+            // Parse text for SYS, DIA, PULSE dynamically
+            const lines = text.split('\n').map(line => line.trim()).filter(line => line);
+            let sys = 'Not found', dia = 'Not found', pulse = 'Not found';
 
-        // Handle upload
-        uploadInput.addEventListener('change', (event) => {
-            const file = event.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    imageDataUrl = e.target.result;
-                    photo.src = imageDataUrl;
-                    photo.style.display = 'block';
-                    video.style.display = 'none';
-                };
-                reader.readAsDataURL(file);
-            }
-        });
+            lines.forEach(line => {
+                // Look for a sequence of 3 numbers (e.g., "127 69 66" or "127/69/66")
+                const numberMatch = line.match(/(\d{2,3})\s*\/?\s*(\d{2,3})\s*\/?\s*(\d{2,3})/);
+                if (numberMatch) {
+                    sys = numberMatch[1];
+                    dia = numberMatch[2];
+                    pulse = numberMatch[3];
+                }
+            });
 
-        // Process image with OCR
-        processButton.addEventListener('click', async () => {
-            if (!imageDataUrl) {
-                alert('Please capture or upload a photo first.');
-                return;
+            // Fallback: Look for individual labels if sequence fails
+            if (sys === 'Not found') {
+                const sysMatch = text.match(/SYS\s*[:=]\s*(\d{2,3})/i) || text.match(/(\d{2,3})\s*mmHg/);
+                const diaMatch = text.match(/DIA\s*[:=]\s*(\d{2,3})/i);
+                const pulseMatch = text.match(/PULSE\s*[:=]\s*(\d{2,3})/i) || text.match(/(\d{2,3})\s*\/min/);
+                sys = sysMatch ? sysMatch[1] : 'Not found';
+                dia = diaMatch ? diaMatch[1] : 'Not found';
+                pulse = pulseMatch ? pulseMatch[1] : 'Not found';
             }
 
-            resultDiv.innerHTML = 'Processing...';
-
-            try {
-                const { data: { text } } = await Tesseract.recognize(imageDataUrl, 'eng', {
-                    logger: m => console.log(m)
-                });
-
-                // Parse text for SYS, DIA, PULSE
-                const sysMatch = text.match(/SYS\s*(\d+)/i);
-                const diaMatch = text.match(/DIA\s*(\d+)/i);
-                const pulseMatch = text.match(/PULSE\s*(\d+)/i) || text.match(/PUL\s*(\d+)/i);
-
-                const sys = sysMatch ? sysMatch[1] : 'Not found';
-                const dia = diaMatch ? diaMatch[1] : 'Not found';
-                const pulse = pulseMatch ? pulseMatch[1] : 'Not found';
-
-                resultDiv.innerHTML = `
-                    <strong>SYS:</strong> ${sys}<br>
-                    <strong>DIA:</strong> ${dia}<br>
-                    <strong>PULSE:</strong> ${pulse}
-                `;
-            } catch (err) {
-                console.error('Error processing image:', err);
-                resultDiv.innerHTML = 'Error processing image. Please try again.';
-            }
-        });
-    </script>
-</body>
-</html>
+            resultDiv.innerHTML = `
+                <strong>SYS:</strong> ${sys} mmHg<br>
+                <strong>DIA:</strong> ${dia} mmHg<br>
+                <strong>PULSE:</strong> ${pulse} /min
+            `;
+        } catch (err) {
+            console.error('Error processing image:', err);
+            resultDiv.innerHTML = 'Error processing image. Please try again with a clearer photo.';
+        }
+    });
+</script>
