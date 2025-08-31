@@ -3,11 +3,20 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { imageBase64, jwt } = req.body;
+  const { imageBase64, jwt, mimeType } = req.body;
 
   if (!imageBase64 || !jwt) {
     return res.status(400).json({ error: "Missing image or token" });
   }
+
+  const promptText = "This is a photo of a digital blood pressure monitor. Please extract the readings shown on the screen and format them as:\nSystolic: ___ mmHg\nDiastolic: ___ mmHg\nPulse: ___ bpm";
+
+  // Debug logs
+  console.log("Sending to Gemini with prompt and image:");
+  console.log("Prompt:", promptText);
+  console.log("Image size (base64):", imageBase64.length);
+  console.log("MIME type:", mimeType || "image/jpeg");
+  console.log("JWT (partial):", jwt?.slice(0, 20) + "...");
 
   try {
     const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-vision:generateContent", {
@@ -20,19 +29,20 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         contents: [{
           parts: [
-            { text: "This is a photo of a digital blood pressure monitor. Please extract the systolic, diastolic, and pulse readings from the screen. Format the output as:\nSystolic: ___ mmHg\nDiastolic: ___ mmHg\nPulse: ___ bpm" },
-            { inline_data: { mime_type: req.body.mimeType || "image/jpeg", data: imageBase64 } }
+            { text: promptText },
+            { inline_data: { mime_type: mimeType || "image/jpeg", data: imageBase64 } }
           ]
         }]
       })
     });
 
     const result = await response.json();
+    console.log("Raw Gemini response:", JSON.stringify(result, null, 2));
 
     const text = result?.candidates?.[0]?.content?.parts?.[0]?.text || "No data found.";
     res.status(200).json({ text });
   } catch (error) {
     console.error("Gemini API error:", error);
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({ error: error.message || "Internal server error" });
   }
 }
