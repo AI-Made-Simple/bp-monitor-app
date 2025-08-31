@@ -3,10 +3,10 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { imageBase64, jwt, mimeType } = req.body;
+  const { imageBase64, mimeType } = req.body;
 
-  if (!imageBase64 || !jwt) {
-    return res.status(400).json({ error: "Missing image or token" });
+  if (!imageBase64 || !mimeType) {
+    return res.status(400).json({ error: "Missing image or MIME type" });
   }
 
   const promptText = "This is a photo of a digital blood pressure monitor. Please extract the readings shown on the screen and format them as:\nSystolic: ___ mmHg\nDiastolic: ___ mmHg\nPulse: ___ bpm";
@@ -16,13 +16,11 @@ export default async function handler(req, res) {
   console.log("Prompt:", promptText);
   console.log("Image size (base64):", imageBase64.length);
   console.log("MIME type:", mimeType);
-  console.log("JWT (partial):", jwt?.slice(0, 20) + "...");
 
   try {
     const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-vision:generateContent", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${jwt}`,
         "Content-Type": "application/json",
         "x-goog-api-key": process.env.GEMINI_API_KEY
       },
