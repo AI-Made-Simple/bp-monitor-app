@@ -15,7 +15,7 @@ export default async function handler(req, res) {
   console.log("Sending to Gemini with prompt and image:");
   console.log("Prompt:", promptText);
   console.log("Image size (base64):", imageBase64.length);
-  console.log("MIME type:", mimeType || "image/jpeg");
+  console.log("MIME type:", mimeType);
   console.log("JWT (partial):", jwt?.slice(0, 20) + "...");
 
   try {
@@ -30,7 +30,7 @@ export default async function handler(req, res) {
         contents: [{
           parts: [
             { text: promptText },
-            { inline_data: { mime_type: mimeType || "image/jpeg", data: imageBase64 } }
+            { inline_data: { mime_type: mimeType, data: imageBase64 } }
           ]
         }]
       })
