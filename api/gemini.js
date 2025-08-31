@@ -11,11 +11,13 @@ export default async function handler(req, res) {
 
   const promptText = "This is a photo of a digital blood pressure monitor. Please extract the readings shown on the screen and format them as:\nSystolic: ___ mmHg\nDiastolic: ___ mmHg\nPulse: ___ bpm";
 
-  // Debug logs
-  console.log("Sending to Gemini with prompt and image:");
+  // Extract raw base64 from data URI
+  const rawBase64 = imageBase64.split(',')[1];
+
+  console.log("Sending to Gemini:");
   console.log("Prompt:", promptText);
-  console.log("Image size (base64):", imageBase64.length);
   console.log("MIME type:", mimeType);
+  console.log("Base64 size:", rawBase64.length);
 
   try {
     const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-vision:generateContent", {
@@ -28,7 +30,7 @@ export default async function handler(req, res) {
         contents: [{
           parts: [
             { text: promptText },
-            { inline_data: { mime_type: mimeType, data: imageBase64 } }
+            { inline_data: { mime_type: mimeType, data: rawBase64 } }
           ]
         }]
       })
