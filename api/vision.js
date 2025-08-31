@@ -1,15 +1,14 @@
-// /api/vision.js - Bulletproof Vercel Serverless Function
+// /api/vision.js - Google Cloud Vision API for Vercel
 export default async function handler(req, res) {
-    console.log('=== VISION API CALL START ===');
+    console.log('=== GOOGLE VISION API CALL START ===');
     console.log('Method:', req.method);
     
-    // CORS headers - must be set first
+    // CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
     if (req.method === 'OPTIONS') {
-        console.log('OPTIONS request, returning 200');
         return res.status(200).end();
     }
 
@@ -18,29 +17,24 @@ export default async function handler(req, res) {
     }
 
     try {
-        // Check environment first
-        const hasApiKey = !!process.env.OPENAI_API_KEY;
-        const apiKeyLength = process.env.OPENAI_API_KEY?.length || 0;
-        
+        // Check environment variables
+        const hasApiKey = !!process.env.GOOGLE_API_KEY;
         console.log('Environment check:');
-        console.log('- API Key exists:', hasApiKey);
-        console.log('- API Key length:', apiKeyLength);
+        console.log('- Google API Key exists:', hasApiKey);
+        console.log('- API Key length:', process.env.GOOGLE_API_KEY?.length || 0);
 
         if (!hasApiKey) {
-            console.error('CRITICAL: No OpenAI API key found');
             return res.status(500).json({ 
-                error: 'OpenAI API key not configured',
-                details: 'Add OPENAI_API_KEY to Vercel environment variables and redeploy'
+                error: 'Google API key not configured',
+                details: 'Add GOOGLE_API_KEY to Vercel environment variables'
             });
         }
 
         const { image } = req.body;
 
         if (!image) {
-            console.error('No image in request body');
             return res.status(400).json({ 
-                error: 'No image provided',
-                details: 'Request body must contain base64 image data'
+                error: 'No image provided'
             });
         }
 
@@ -49,80 +43,102 @@ export default async function handler(req, res) {
 
         // Validate base64 format
         if (!image.match(/^[A-Za-z0-9+/]*={0,2}$/)) {
-            console.error('Invalid base64 format');
             return res.status(400).json({ 
-                error: 'Invalid image format',
-                details: 'Image must be valid base64 data'
+                error: 'Invalid image format'
             });
         }
 
-        console.log('Making OpenAI API call...');
+        console.log('Making Google Vision API call...');
 
-        const apiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+        // Google Cloud Vision API REST call
+        const apiResponse = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${process.env.GOOGLE_API_KEY}`, {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                model: "gpt-4o",
-                messages: [
+                requests: [
                     {
-                        role: "user",
-                        content: [
+                        image: {
+                            content: image
+                        },
+                        features: [
                             {
-                                type: "text",
-                                text: "Look at this blood pressure monitor display and tell me exactly what numbers and text you can see. Look for systolic (SYS), diastolic (DIA), and pulse values. Just describe what you see on the screen."
-                            },
-                            {
-                                type: "image_url",
-                                image_url: {
-                                    url: `data:image/jpeg;base64,${image}`,
-                                    detail: "high"
-                                }
+                                type: 'TEXT_DETECTION',
+                                maxResults: 10
                             }
                         ]
                     }
-                ],
-                max_tokens: 300,
-                temperature: 0
+                ]
             })
         });
 
-        console.log('API response status:', apiResponse.status);
+        console.log('Google API response status:', apiResponse.status);
 
         if (!apiResponse.ok) {
             const errorText = await apiResponse.text();
-            console.error('OpenAI API error:', errorText);
+            console.error('Google Vision API error:', errorText);
             
-            let userMessage = 'Vision API request failed';
-            if (apiResponse.status === 401) {
-                userMessage = 'Invalid API key - check your OpenAI API key';
+            let userMessage = 'Google Vision API failed';
+            if (apiResponse.status === 400) {
+                userMessage = 'Invalid request - check image format';
+            } else if (apiResponse.status === 403) {
+                userMessage = 'API key invalid or Vision API not enabled';
             } else if (apiResponse.status === 429) {
-                userMessage = 'Rate limit exceeded - please wait and try again';
+                userMessage = 'Rate limit exceeded';
             }
             
             return res.status(500).json({ 
                 error: userMessage,
-                details: `Status: ${apiResponse.status}`
+                details: `Status: ${apiResponse.status}, Error: ${errorText.substring(0, 200)}`
             });
         }
 
         const result = await apiResponse.json();
-        console.log('OpenAI response received successfully');
+        console.log('Google Vision API response structure:', {
+            hasResponses: !!result.responses,
+            responsesLength: result.responses?.length || 0
+        });
 
-        if (!result.choices || result.choices.length === 0) {
+        if (!result.responses || result.responses.length === 0) {
             return res.status(500).json({ 
-                error: 'Empty response from Vision API'
+                error: 'Empty response from Google Vision API'
             });
         }
 
-        const extractedText = result.choices[0].message?.content?.trim() || 'No text found.';
+        const response = result.responses[0];
+        
+        // Check for API errors
+        if (response.error) {
+            console.error('Google Vision API error in response:', response.error);
+            return res.status(500).json({ 
+                error: 'Google Vision API error',
+                details: response.error.message
+            });
+        }
+
+        // Extract text from annotations
+        const textAnnotations = response.textAnnotations || [];
+        console.log('Text annotations found:', textAnnotations.length);
+
+        if (textAnnotations.length === 0) {
+            return res.status(200).json({ 
+                text: 'No text found.',
+                error: 'No text detected in image'
+            });
+        }
+
+        // The first annotation contains all detected text
+        const extractedText = textAnnotations[0].description || 'No text found.';
         console.log('Extracted text:', extractedText);
 
         return res.status(200).json({
             text: extractedText,
-            success: true
+            success: true,
+            debug: {
+                annotationsCount: textAnnotations.length,
+                imageSizeKB: imageSizeKB
+            }
         });
 
     } catch (error) {
