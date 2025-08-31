@@ -42,7 +42,7 @@
        data-logo_alignment="left">
   </div>
 
-  <!-- App UI (hidden until login) -->
+  <!-- App UI -->
   <div id="appUI" style="display: none;">
     <input type="file" id="imageInput" accept="image/*">
     <div id="dropZone">Drop image here</div>
@@ -57,13 +57,16 @@
     const output = document.getElementById("output");
     const dropZone = document.getElementById("dropZone");
 
-    // Auto-restore JWT on page load
     window.onload = () => {
       const savedToken = localStorage.getItem("google_jwt");
       if (savedToken) {
         accessToken = savedToken;
         console.log("Restored JWT from localStorage.");
         document.getElementById("appUI").style.display = "block";
+      } else {
+        google.accounts.id.prompt((notification) => {
+          console.log("One Tap status:", notification);
+        });
       }
     };
 
@@ -126,7 +129,7 @@
         canvas.height = height;
         canvas.getContext("2d").drawImage(img, 0, 0, width, height);
         const resizedDataUrl = canvas.toDataURL("image/jpeg", 0.7); // 70% quality
-        callback(resizedDataUrl.split(',')[1]); // base64 only
+        callback(resizedDataUrl); // send full data URI
       };
 
       reader.readAsDataURL(file);
@@ -138,13 +141,10 @@
         return;
       }
 
-      console.log("Image MIME type:", currentImage.type);
-
-      resizeImage(currentImage, 800, 800, async (base64Image) => {
+      resizeImage(currentImage, 800, 800, async (dataUri) => {
         console.log("Sending to Gemini:", {
-          mimeType: currentImage.type,
-          imageBase64: base64Image.slice(0, 100) + "...",
-          jwt: accessToken.slice(0, 20) + "..."
+          mimeType: "image/jpeg",
+          imageBase64: dataUri.slice(0, 100) + "...",
         });
 
         try {
@@ -152,8 +152,8 @@
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              imageBase64: base64Image,
-              mimeType: currentImage.type
+              imageBase64: dataUri,
+              mimeType: "image/jpeg"
             })
           });
 
